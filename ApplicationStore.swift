@@ -32,7 +32,8 @@ final class ApplicationStore {
     var page: Page = .home
     var modal: Modal?
 
-    private let api = APIClient()
+    private var api = APIClient()
+    var isSignedIn = false
 
     /// Statuses and saved site mappings. Applications load per page, with loadApplications.
     func load() async {
@@ -42,7 +43,7 @@ final class ApplicationStore {
             statuses = try await loadedStatuses
             siteMappings = try await loadedMappings
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
@@ -54,7 +55,7 @@ final class ApplicationStore {
                 .sorted { $0.id < $1.id }
         } catch {
             if !(error is CancellationError) && (error as? URLError)?.code != .cancelled {
-                errorMessage = error.localizedDescription
+                report(error)
             }
         }
     }
@@ -67,7 +68,7 @@ final class ApplicationStore {
             applications.sort { $0.id < $1.id }
             return nil
         } catch {
-            return error.localizedDescription
+            return message(for: error)
         }
     }
 
@@ -78,7 +79,7 @@ final class ApplicationStore {
                 applications[index] = updated
             }
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
@@ -87,22 +88,22 @@ final class ApplicationStore {
             try await api.deleteApplication(id: entry.id)
             applications.removeAll { $0.id == entry.id }
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
     // MARK: - Link import and site mappings
 
     func inspect(url: String) async throws -> InspectResult {
-        try await api.inspect(url: url)
+        try await guarded { try await api.inspect(url: url) }
     }
 
     func suggest(candidates: [Candidate]) async throws -> [MappingEntry] {
-        try await api.suggest(candidates: candidates)
+        try await guarded { try await api.suggest(candidates: candidates) }
     }
 
     func suggest(url: String) async throws -> [MappingEntry] {
-        try await api.suggest(url: url)
+        try await guarded { try await api.suggest(url: url) }
     }
 
     /// Returns an error message to show in the editor, or nil when saved.
@@ -112,7 +113,7 @@ final class ApplicationStore {
             siteMappings = try await api.mappings()
             return nil
         } catch {
-            return error.localizedDescription
+            return message(for: error)
         }
     }
 
@@ -121,7 +122,61 @@ final class ApplicationStore {
             try await api.deleteMapping(host: group.host)
             siteMappings.removeAll { $0.host == group.host }
         } catch {
+            report(error)
+        }
+    }
+
+    // MARK: - Sign-in
+
+    /// Returns an error message to show on the sign-in screen, or nil when signed in.
+    func signIn(code: String) async -> String? {
+        do {
+            api.token = try await api.login(code: code)
+            isSignedIn = true
+            await load()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Ends the session here and tells the server to forget it.
+    func signOut() {
+        let closing = api
+        Task { try? await closing.logout() }
+        endSession()
+    }
+
+    private func endSession() {
+        api.token = nil
+        isSignedIn = false
+        applications = []
+        siteMappings = []
+        statuses = []
+        modal = nil
+        page = .home
+    }
+
+    /// A refused session sends the user back to sign-in. Other errors show in the alert.
+    private func report(_ error: Error) {
+        if case APIError.unauthorized = error {
+            endSession()
+        } else if !(error is CancellationError), (error as? URLError)?.code != .cancelled {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func message(for error: Error) -> String {
+        if case APIError.unauthorized = error { endSession() }
+        return error.localizedDescription
+    }
+
+    private func guarded<T>(_ work: () async throws -> T) async throws -> T {
+        do {
+            return try await work()
+        } catch {
+            if case APIError.unauthorized = error { endSession() }
+            throw error
         }
     }
 }

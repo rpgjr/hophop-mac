@@ -17,13 +17,16 @@ struct ContentView: View {
         VStack(spacing: 0) {
             header
             Rectangle().fill(HH.border).frame(height: 1)
-            page
+            if store.isSignedIn {
+                page
+            } else {
+                LoginView()
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(HH.bg.ignoresSafeArea())
         .overlay { modalLayer }
         .preferredColorScheme(preferredScheme)
-        .task { await store.load() }
         .alert(
             "Something went wrong",
             isPresented: Binding(
@@ -61,11 +64,13 @@ struct ContentView: View {
 
             Spacer()
 
-            navButton("Calendar", icon: "calendar", active: store.page != .settings) {
-                store.page = .home
-            }
-            navButton("Settings", icon: "slider.horizontal.3", active: store.page == .settings) {
-                store.page = .settings
+            if store.isSignedIn {
+                navButton("Calendar", icon: "calendar", active: store.page != .settings) {
+                    store.page = .home
+                }
+                navButton("Settings", icon: "slider.horizontal.3", active: store.page == .settings) {
+                    store.page = .settings
+                }
             }
 
             Button {
@@ -76,6 +81,16 @@ struct ContentView: View {
             }
             .buttonStyle(.hh(.plain, small: true))
             .accessibilityLabel(colorScheme == .dark ? "Switch to light theme" : "Switch to dark theme")
+
+            if store.isSignedIn {
+                Button {
+                    store.signOut()
+                } label: {
+                    Label("Lock", systemImage: "lock")
+                }
+                .buttonStyle(.hh(.plain, small: true))
+                .help("Sign out")
+            }
         }
         .padding(.leading, 84) // room for the window buttons
         .padding(.trailing, 20)

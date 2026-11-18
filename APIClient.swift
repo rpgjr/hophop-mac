@@ -2,9 +2,21 @@ import Foundation
 
 enum APIError: LocalizedError {
     case badStatus(code: Int, call: String)
+    case unauthorized
+    case badCode
+    case tooManyAttempts
+    case signInNotSetUp
 
     var errorDescription: String? {
         switch self {
+        case .unauthorized:
+            return "Your session ended. Sign in again."
+        case .badCode:
+            return "That code is not valid, or it was already used. Wait for the next code and try again."
+        case .tooManyAttempts:
+            return "Too many attempts. Wait a few minutes, then try again."
+        case .signInNotSetUp:
+            return "Sign-in is not set up on the server yet."
         case .badStatus(let code, let call):
             switch code {
             case 409: return "That job link is already saved."
@@ -17,12 +29,29 @@ enum APIError: LocalizedError {
 
 struct APIClient {
     private let baseURL = Config.apiBaseURL
+    /// The session token. Held in memory only, so every launch asks for a new code.
+    var token: String?
     private let session: URLSession
 
     init() {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 60
         session = URLSession(configuration: configuration)
+    }
+
+    func login(code: String) async throws -> String {
+        let body = try JSONEncoder().encode(["code": code])
+        do {
+            let data = try await request("POST", "api/auth/login", body: body)
+            struct Reply: Decodable { let token: String }
+            return try JSONDecoder().decode(Reply.self, from: data).token
+        } catch APIError.unauthorized {
+            throw APIError.badCode
+        }
+    }
+
+    func logout() async throws {
+        _ = try await request("POST", "api/auth/logout")
     }
 
     func statuses() async throws -> [Status] {
@@ -122,9 +151,18 @@ struct APIClient {
             urlRequest.httpBody = body
             urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
+        if let token {
+            urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         let (data, response) = try await session.data(for: urlRequest)
         let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+        switch code {
+        case 401: throw APIError.unauthorized
+        case 429: throw APIError.tooManyAttempts
+        case 503 where path == "api/auth/login": throw APIError.signInNotSetUp
+        default: break
+        }
         guard (200..<300).contains(code) else {
             throw APIError.badStatus(code: code, call: "\(method) /\(path)")
         }
