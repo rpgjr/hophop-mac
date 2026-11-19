@@ -1,0 +1,12 @@
+disabled_rules:
+  - line_length
+  - file_length
+  - type_body_length
+  - function_body_length
+  - identifier_name
+  - trailing_whitespace
+  - force_try
+
+excluded:
+  - HopHop/Fonts
+  - HopHop/Assets.xcassets
