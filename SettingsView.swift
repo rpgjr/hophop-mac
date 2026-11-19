@@ -1,42 +1,25 @@
 import SwiftUI
 
 struct SettingsView: View {
-    private enum Tab: String, CaseIterable {
-        case general = "General"
-        case metaTags = "Meta tags"
-    }
-
-    @State private var tab = Tab.metaTags
+    let section: SettingsSection
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Settings")
+                Text(section.rawValue)
                     .font(HH.display(26))
                     .foregroundStyle(HH.ink)
 
-                HStack(spacing: 8) {
-                    ForEach(Tab.allCases, id: \.self) { item in
-                        Button {
-                            tab = item
-                        } label: {
-                            HHChip(title: item.rawValue, on: tab == item)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(tab == item ? .isSelected : [])
-                    }
-                }
-
-                switch tab {
+                switch section {
                 case .general:
-                    Text("General settings will go here.")
-                        .font(HH.font(14))
-                        .foregroundStyle(HH.muted)
+                    GeneralSettingsView()
+                case .statuses:
+                    StatusesView()
                 case .metaTags:
                     MappingsView()
                 }
             }
-            .frame(maxWidth: 940, alignment: .leading)
+            .frame(maxWidth: 1240, alignment: .leading)
             .padding(.horizontal, 30)
             .padding(.vertical, 28)
             .frame(maxWidth: .infinity)

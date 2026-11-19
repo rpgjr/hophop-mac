@@ -10,6 +10,7 @@ struct ImportedJob {
     var employmentType: String?
     var setup: String?
     var remarks: String?
+    var description: String?
     var filled = 0
 }
 
@@ -37,7 +38,8 @@ enum JobImporter {
             case .location:
                 location = text
                 continue
-            case .description, .remarks: continue
+            case .description: job.description = text
+            case .remarks: continue
             }
             job.filled += 1
         }

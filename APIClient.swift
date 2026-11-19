@@ -68,6 +68,25 @@ struct APIClient {
         return try JSONDecoder().decode([ApplicationEntry].self, from: data)
     }
 
+    func saveStatus(id: Int?, name: String, color: String) async throws {
+        let body = try JSONEncoder().encode(["name": name, "color": color])
+        if let id {
+            _ = try await request("PUT", "api/statuses/\(id)", body: body)
+        } else {
+            _ = try await request("POST", "api/statuses", body: body)
+        }
+    }
+
+    /// Sends every status id in the order they should show.
+    func reorderStatuses(ids: [Int]) async throws {
+        let body = try JSONEncoder().encode(["ids": ids])
+        _ = try await request("PUT", "api/statuses/order", body: body)
+    }
+
+    func deleteStatus(id: Int) async throws {
+        _ = try await request("DELETE", "api/statuses/\(id)")
+    }
+
     func createApplication(_ new: NewApplication) async throws -> ApplicationEntry {
         let body = try JSONEncoder().encode(new)
         let data = try await request("POST", "api/applications", body: body)
@@ -117,6 +136,12 @@ struct APIClient {
 
     func deleteMapping(host: String) async throws {
         _ = try await request("DELETE", "api/site-mappings/\(host)")
+    }
+
+    func updateApplication(id: Int, _ new: NewApplication) async throws -> ApplicationEntry {
+        let body = try JSONEncoder().encode(new)
+        let data = try await request("PUT", "api/applications/\(id)", body: body)
+        return try JSONDecoder().decode(ApplicationEntry.self, from: data)
     }
 
     func updateStatus(id: Int, statusId: Int) async throws -> ApplicationEntry {

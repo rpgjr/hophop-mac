@@ -6,14 +6,18 @@ struct CalendarView: View {
         from: Calendar.current.dateComponents([.year, .month], from: .now)
     )!
 
+    @State private var futureNotice = false
     private let calendar = Calendar.current
-    private let weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    @AppStorage(AppSettings.weekStart) private var weekStart = 0
+    private let allWeekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+    private var weekdays: [String] { Array(allWeekdays[weekStart...] + allWeekdays[..<weekStart]) }
 
     private var counts: [String: Int] {
         Dictionary(grouping: store.applications, by: \.appliedDate).mapValues(\.count)
     }
 
-    private var firstWeekday: Int { calendar.component(.weekday, from: month) - 1 }
+    private var firstWeekday: Int { (calendar.component(.weekday, from: month) - 1 - weekStart + 7) % 7 }
 
     private var daysInMonth: Int { calendar.range(of: .day, in: .month, for: month)!.count }
 
@@ -61,6 +65,20 @@ struct CalendarView: View {
         .padding(.horizontal, 28)
         .padding(.top, 20)
         .padding(.bottom, 26)
+        .overlay(alignment: .bottom) {
+            if futureNotice {
+                Label("Cannot add applications for future dates", systemImage: "info.circle")
+                    .font(HH.font(13, .semibold))
+                    .foregroundStyle(HH.warnInk)
+                    .padding(.horizontal, 16)
+                    .frame(height: 38)
+                    .background(Capsule().fill(HH.warnSoft))
+                    .overlay(Capsule().stroke(HH.warnInk.opacity(0.3), lineWidth: 1))
+                    .padding(.bottom, 40)
+                    .transition(.opacity)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+        }
         .task(id: month) {
             await store.loadApplications(from: month, to: lastDay)
         }
@@ -96,7 +114,19 @@ struct CalendarView: View {
         let date = calendar.date(byAdding: .day, value: day - 1, to: month)!
         let count = counts[APIClient.day(date)] ?? 0
         return DayCell(day: day, count: count, isToday: calendar.isDateInToday(date)) {
-            store.page = .day(date)
+            if date > .now {
+                showFutureNotice()
+            } else {
+                store.page = .day(date)
+            }
+        }
+    }
+
+    private func showFutureNotice() {
+        withAnimation(.easeOut(duration: 0.15)) { futureNotice = true }
+        Task {
+            try? await Task.sleep(for: .seconds(2.5))
+            withAnimation(.easeIn(duration: 0.2)) { futureNotice = false }
         }
     }
 

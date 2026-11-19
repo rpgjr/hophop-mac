@@ -141,7 +141,7 @@ private struct BrowserWebView: NSViewRepresentable {
         private static let script = """
         (() => {
           const out = [], seen = new Set();
-          const cut = v => v.length > 200 ? v.slice(0, 200) : v;
+          const cut = v => v.length > 12000 ? v.slice(0, 12000) : v;
           document.querySelectorAll('meta[content]').forEach(m => {
             const key = m.getAttribute('property') || m.getAttribute('name') || '';
             const value = (m.getAttribute('content') || '').trim();
@@ -149,7 +149,13 @@ private struct BrowserWebView: NSViewRepresentable {
           });
           ['h1', '.top-card-layout__title', '.topcard__org-name-link', '.topcard__flavor--bullet',
            '.description__job-criteria-item:nth-child(2) .description__job-criteria-text',
-           '.show-more-less-html__markup'].forEach(selector => {
+           '.show-more-less-html__markup',
+           '[data-testid="jobsearch-JobInfoHeader-title"]', '[data-testid="inlineHeader-companyName"]',
+           '[data-testid="inlineHeader-companyLocation"]', '#salaryInfoAndJobType', '#jobDescriptionText',
+           '[data-automation="jobAdDetails"]',
+           '.job-details-fit-level-preferences', '.job-details-jobs-unified-top-card__job-title',
+           '.job-details-jobs-unified-top-card__company-name',
+           '.job-details-jobs-unified-top-card__primary-description-container', '#job-details'].forEach(selector => {
             try {
               const el = document.querySelector(selector);
               const text = el && el.innerText ? el.innerText.trim() : '';
@@ -157,24 +163,38 @@ private struct BrowserWebView: NSViewRepresentable {
             } catch (e) {}
           });
           const patterns = {
-            salary: [/(₱|PHP|USD|\\$)\\s?\\d[\\d,]*/i, 120],
+            salary: [/(₱|PHP|USD|\\$)\\s?\\d[\\d,]*|\\d[\\d,.]*\\s?k?\\s?(₱|PHP|USD)/i, 120],
             setup: [/\\b(hybrid|remote|work from home|wfh|on-?site)\\b/i, 120],
             employment_type: [/\\b(full[- ]?time|part[- ]?time|contract(or)?|temporary|freelance|internship)\\b/i, 60]
           };
+          const ownText = el => Array.from(el.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent).join(' ').replace(/\\s+/g, ' ').trim();
           const leaves = Array.from(document.body.querySelectorAll('*')).filter(el =>
-            !el.children.length && !['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(el.tagName));
+            !['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(el.tagName));
           Object.keys(patterns).forEach(key => {
             const [re, max] = patterns[key];
             const hit = leaves.find(el => {
-              const text = (el.innerText || '').trim();
+              const text = ownText(el);
               return text && text.length <= max && re.test(text);
             });
-            if (hit) out.push({type: 'PATTERN', key, value: cut(hit.innerText.trim())});
+            if (hit) out.push({type: 'PATTERN', key, value: cut(ownText(hit))});
           });
+          const headingRe = /^(full\\s+)?job\\s+description$|^about\\s+(the|this)\\s+(job|role|position)$|^description$/i;
+          for (const heading of leaves.filter(el => headingRe.test(ownText(el)))) {
+            const title = ownText(heading);
+            let box = heading, found = false;
+            for (let level = 0; level < 4 && box.parentElement && !found; level++) {
+              box = box.parentElement;
+              let text = (box.innerText || '').trim();
+              if (text.startsWith(title)) text = text.slice(title.length).trim();
+              if (text.length >= 150) { out.push({type: 'PATTERN', key: 'description', value: cut(text)}); found = true; }
+            }
+            if (found) break;
+          }
           const labelled = new Set();
-          document.querySelectorAll('[data-automation]').forEach(el => {
+          document.querySelectorAll('[data-automation], [data-testid]').forEach(el => {
             const text = (el.innerText || '').trim();
-            const selector = '[data-automation="' + el.getAttribute('data-automation') + '"]';
+            const attr = el.hasAttribute('data-automation') ? 'data-automation' : 'data-testid';
+            const selector = '[' + attr + '="' + el.getAttribute(attr) + '"]';
             if (text && text.length <= 120 && !labelled.has(selector) && labelled.size < 40) {
               labelled.add(selector);
               out.push({type: 'CSS', key: selector, value: cut(text)});

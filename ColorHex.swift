@@ -11,3 +11,13 @@ extension Color {
         )
     }
 }
+
+
+extension Color {
+    /// The colour as #rrggbb, the form the server stores.
+    var hexString: String {
+        guard let rgb = NSColor(self).usingColorSpace(.sRGB) else { return "#888888" }
+        func part(_ value: CGFloat) -> Int { Int((value * 255).rounded()) }
+        return String(format: "#%02x%02x%02x", part(rgb.redComponent), part(rgb.greenComponent), part(rgb.blueComponent))
+    }
+}

@@ -41,6 +41,8 @@ struct LoginView: View {
                 .onChange(of: code) { _, new in
                     let cleaned = String(new.filter { $0.isNumber || $0 == " " }.prefix(7))
                     if cleaned != new { code = cleaned }
+                    // a pasted or typed sixth digit signs in without pressing Return
+                    if cleaned.filter(\.isNumber).count == 6 { Task { await submit() } }
                 }
 
                 if let error {

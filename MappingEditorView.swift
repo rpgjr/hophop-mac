@@ -17,6 +17,7 @@ struct MappingEditorView: View {
     @State private var picks: [MappingField: Pick]
     @State private var busy: Busy?
     @State private var errorText: String?
+    @State private var note: (tone: HHNotice.Tone, text: String)?
     @State private var showBrowser = false
     @State private var suggestAfterBrowser = false
     @State private var openField: MappingField?
@@ -77,6 +78,10 @@ struct MappingEditorView: View {
                             .font(HH.font(13, .semibold))
                             .foregroundStyle(HH.ink)
                     }
+                }
+
+                if let note {
+                    HHNotice(tone: note.tone, text: note.text)
                 }
 
                 if !host.isEmpty {
@@ -312,13 +317,22 @@ struct MappingEditorView: View {
             guard await findTags(thenSuggest: true) else { return }
         }
         busy = .suggesting
+        errorText = nil
+        note = nil
         defer { busy = nil }
         do {
-            let entries = try await store.suggest(candidates: candidates)
-            picks = Dictionary(
-                entries.filter { $0.field != .remarks }.map { ($0.field, Pick(type: $0.sourceType, key: $0.sourceKey)) },
-                uniquingKeysWith: { first, _ in first }
-            )
+            let entries = try await store.suggest(candidates: candidates).filter { $0.field != .remarks }
+            if entries.isEmpty {
+                note = (.warn, "AI found no matching tags on this page. Pick them by hand.")
+            } else {
+                // fields the AI skipped keep whatever was picked before
+                for entry in entries {
+                    picks[entry.field] = Pick(type: entry.sourceType, key: entry.sourceKey)
+                }
+                note = (.ok, "AI picked a tag for \(entries.count) fields. Check them, then press Save mapping.")
+            }
+        } catch APIError.badStatus(let code, _) where code == 502 || code == 503 {
+            errorText = "The AI is busy right now. Try again in a moment, or pick the tags by hand."
         } catch {
             errorText = "AI suggestion failed. Pick the tags by hand."
         }

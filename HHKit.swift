@@ -257,6 +257,60 @@ struct HHInputBox: ViewModifier {
     }
 }
 
+// MARK: - Links in text
+
+/// The text with every web address in it made clickable.
+func hhLinkified(_ text: String) -> AttributedString {
+    var result = AttributedString(text)
+    hhAddLinks(to: &result)
+    return result
+}
+
+/// Makes every web address in already drawn text clickable.
+func hhAddLinks(to result: inout AttributedString) {
+    let text = String(result.characters)
+    guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return }
+    let whole = NSRange(text.startIndex..., in: text)
+    for match in detector.matches(in: text, range: whole) {
+        guard let url = match.url,
+              let range = Range(match.range, in: text),
+              let target = Range(range, in: result) else { continue }
+        result[target].link = url
+        result[target].foregroundColor = HH.primary
+        result[target].underlineStyle = .single
+    }
+}
+
+/// A title that opens a web page, underlined while the pointer is over it.
+struct HHLinkTitle: View {
+    let text: String
+    let url: String
+    let font: Font
+    @Environment(\.openURL) private var openURL
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            if let target = URL(string: url) { openURL(target) }
+        } label: {
+            // the arrow tells you the title is a link that leaves the app
+            (Text(text) + Text(" ") + Text(Image(systemName: "arrow.up.right")).font(.system(size: 11, weight: .bold)))
+                .font(font)
+                .foregroundStyle(hovering ? HH.primary : HH.ink)
+                .underline(hovering)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .buttonStyle(.plain)
+        .onHover { inside in
+            hovering = inside
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+        .help(url)
+        .accessibilityLabel("\(text), open job posting")
+    }
+}
+
 // MARK: - Chips and choices
 
 struct HHChip: View {
@@ -287,8 +341,19 @@ struct HHChip: View {
     }
 }
 
-/// A wrapping row of chips where exactly one is on.
-struct HHChoice<Value: Hashable>: View {
+/// A small solid circle that keeps its colour inside a menu, where system symbols are drawn in grey.
+func hhColorDot(_ color: Color, size: CGFloat = 12) -> NSImage {
+    let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
+        NSColor(color).setFill()
+        NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1)).fill()
+        return true
+    }
+    image.isTemplate = false
+    return image
+}
+
+/// A box that opens a list to pick from. Each entry can carry a colour dot, in the box and in the list.
+struct HHDropdown<Value: Hashable>: View {
     struct Option {
         let value: Value
         let title: String
@@ -299,18 +364,80 @@ struct HHChoice<Value: Hashable>: View {
     @Binding var selection: Value
     let options: [Option]
 
+    private var current: Option? { options.first { $0.value == selection } }
+
+    var body: some View {
+        Menu {
+            Picker(label, selection: $selection) {
+                ForEach(options, id: \.title) { option in
+                    if let color = option.color {
+                        Label { Text(option.title) } icon: { Image(nsImage: hhColorDot(color)) }
+                            .tag(option.value)
+                    } else {
+                        Text(option.title).tag(option.value)
+                    }
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            HStack(spacing: 8) {
+                if let color = current?.color {
+                    Circle().fill(color).frame(width: 9, height: 9)
+                }
+                Text(current?.title ?? "Choose")
+                Spacer(minLength: 6)
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 9, weight: .semibold))
+            }
+            .font(HH.font(13, .medium))
+            .foregroundStyle(HH.ink)
+            .padding(.horizontal, 12)
+            .frame(minWidth: 170, minHeight: 32)
+            .background(RoundedRectangle(cornerRadius: 8).fill(HH.surface))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(HH.borderStrong, lineWidth: 1))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel("\(label): \(current?.title ?? "none")")
+    }
+}
+
+/// A short list of choices as chips, or a dropdown once there are more than three.
+struct HHChoice<Value: Hashable>: View {
+    struct Option {
+        let value: Value
+        let title: String
+        var color: Color?
+    }
+
+    let label: String
+    @Binding var selection: Value
+    let options: [Option]
+    /// False when the caller already shows the label, for example in a settings row.
+    var showsLabel = true
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HHLabel(text: label)
-            FlowLayout(spacing: 8) {
-                ForEach(options, id: \.title) { option in
-                    Button {
-                        selection = option.value
-                    } label: {
-                        HHChip(title: option.title, color: option.color, on: selection == option.value)
+            if showsLabel { HHLabel(text: label) }
+            if options.count > 3 {
+                HHDropdown(
+                    label: label,
+                    selection: $selection,
+                    options: options.map { .init(value: $0.value, title: $0.title, color: $0.color) }
+                )
+            } else {
+                FlowLayout(spacing: 8) {
+                    ForEach(options, id: \.title) { option in
+                        Button {
+                            selection = option.value
+                        } label: {
+                            HHChip(title: option.title, color: option.color, on: selection == option.value)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(selection == option.value ? .isSelected : [])
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(selection == option.value ? .isSelected : [])
                 }
             }
         }
@@ -364,6 +491,8 @@ struct HHModal<Content: View, Footer: View>: View {
     let title: String
     var subtitle: String?
     var width: CGFloat = 560
+    /// False sizes the dialog to its content instead of scrolling it.
+    var scrolls = true
     @ViewBuilder let content: Content
     @ViewBuilder let footer: Footer
 
@@ -395,7 +524,13 @@ struct HHModal<Content: View, Footer: View>: View {
 
             Rectangle().fill(HH.border).frame(height: 1)
 
-            ScrollView {
+            if scrolls {
+                ScrollView {
+                    content
+                        .padding(20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
                 content
                     .padding(20)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -410,9 +545,14 @@ struct HHModal<Content: View, Footer: View>: View {
         }
         .frame(width: width)
         .frame(maxHeight: 700)
-        .background(RoundedRectangle(cornerRadius: 14).fill(HH.surface))
+        // the shadow belongs to the panel's own shape, not to every control inside it
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(HH.surface)
+                .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
+        )
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(HH.border, lineWidth: 1))
-        .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
+        .fixedSize(horizontal: false, vertical: !scrolls)
         .padding(24)
     }
 }

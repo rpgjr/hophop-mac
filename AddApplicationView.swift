@@ -36,13 +36,15 @@ struct AddApplicationView: View {
     @State private var title = ""
     @State private var company = ""
     @State private var link = ""
-    @State private var currency = "PHP"
+    @State private var currency = AppSettings.currency
     @State private var salaryMin: Double?
     @State private var salaryMax: Double?
-    @State private var setup = "Onsite"
-    @State private var employmentType: String?
+    @State private var setup = AppSettings.setup
+    @State private var employmentType = AppSettings.employment
     @State private var statusID: Int?
     @State private var remarks = ""
+    @State private var jobDescription = ""
+    @State private var importedDescription: String? // the page's own HTML, kept while the text is untouched
     @State private var isSaving = false
     @State private var serverError: String?
 
@@ -85,7 +87,10 @@ struct AddApplicationView: View {
                 }
             }
         }
-        .onAppear { statusID = statusID ?? store.statuses.first?.id }
+        .onAppear {
+            let preferred = store.statuses.first { $0.id == AppSettings.status }?.id
+            statusID = statusID ?? preferred ?? store.statuses.first?.id
+        }
         .task(id: link) {
             guard step == .link, linkIsValid, trimmedLink != importedLink else { return }
             try? await Task.sleep(for: .milliseconds(700))
@@ -186,13 +191,13 @@ struct AddApplicationView: View {
                     options: [.init(value: nil, title: "Not specified")]
                         + JobOptions.employmentTypes.map { .init(value: Optional($0), title: $0) }
                 )
-                HHChoice(
-                    label: "Status",
-                    selection: $statusID,
-                    options: store.statuses.map {
-                        .init(value: Optional($0.id), title: $0.name, color: Color(hex: $0.color))
+                if let current = store.statuses.first(where: { $0.id == statusID }) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HHLabel(text: "Status")
+                        StatusMenu(statuses: store.statuses, selected: current, label: "new application") { statusID = $0.id }
                     }
-                )
+                }
+                HHTextArea(label: "Description", text: $jobDescription, height: 140)
                 HHTextArea(label: "Remarks", text: $remarks)
             }
         } footer: {
@@ -365,6 +370,10 @@ struct AddApplicationView: View {
         if let value = job.currency { currency = value }
         if let value = job.employmentType { employmentType = value }
         if let value = job.setup { setup = value }
+        if let value = job.description {
+            jobDescription = HTMLText.plain(value)
+            importedDescription = value
+        }
     }
 
     private func save() async {
@@ -384,6 +393,7 @@ struct AddApplicationView: View {
             employmentType: employmentType,
             setup: setup,
             remarks: note.isEmpty ? nil : note,
+            description: HTMLText.keep(shown: jobDescription, original: importedDescription),
             link: trimmedLink,
             appliedDate: APIClient.day(appliedDate)
         )

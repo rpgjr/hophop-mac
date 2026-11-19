@@ -1,10 +1,17 @@
 import Foundation
 import Observation
 
+enum SettingsSection: String, Hashable {
+    case general = "General"
+    case statuses = "Statuses"
+    case metaTags = "Meta tags"
+}
+
 enum Page: Hashable {
     case home
+    case all
     case day(Date)
-    case settings
+    case settings(SettingsSection)
 }
 
 struct Confirmation {
@@ -17,7 +24,9 @@ struct Confirmation {
 /// The dialog shown over the page. HopHop draws its own instead of using system sheets.
 enum Modal {
     case addJob(Date)
+    case viewJob(ApplicationEntry)
     case mapping(SiteMappingGroup?)
+    case status(Status?)
     case confirm(Confirmation)
 }
 
@@ -60,12 +69,34 @@ final class ApplicationStore {
         }
     }
 
+    /// Every application ever saved, for the CSV export.
+    func allApplications() async throws -> [ApplicationEntry] {
+        let first = Calendar.current.date(from: DateComponents(year: 2000, month: 1, day: 1))!
+        let last = Calendar.current.date(from: DateComponents(year: 2099, month: 12, day: 31))!
+        return try await guarded { try await api.applications(from: first, to: last) }
+    }
+
     /// Returns an error message to show in the form, or nil when saved.
     func add(_ new: NewApplication) async -> String? {
         do {
             let created = try await api.createApplication(new)
             applications.append(created)
             applications.sort { $0.id < $1.id }
+            return nil
+        } catch {
+            return message(for: error)
+        }
+    }
+
+    /// Returns an error message to show in the form, or nil when saved.
+    func update(_ entry: ApplicationEntry, with new: NewApplication) async -> String? {
+        do {
+            let updated = try await api.updateApplication(id: entry.id, new)
+            if case .day(let shown) = page, APIClient.day(shown) != updated.appliedDate {
+                applications.removeAll { $0.id == updated.id } // moved to another day
+            } else if let index = applications.firstIndex(where: { $0.id == updated.id }) {
+                applications[index] = updated
+            }
             return nil
         } catch {
             return message(for: error)
@@ -121,6 +152,49 @@ final class ApplicationStore {
         do {
             try await api.deleteMapping(host: group.host)
             siteMappings.removeAll { $0.host == group.host }
+        } catch {
+            report(error)
+        }
+    }
+
+    // MARK: - Statuses
+
+    /// Returns an error message to show in the editor, or nil when saved.
+    func saveStatus(id: Int?, name: String, color: String) async -> String? {
+        do {
+            try await api.saveStatus(id: id, name: name, color: color)
+            statuses = try await api.statuses()
+            // cards on screen carry their own copy of the status, so refresh them
+            if case .day(let shown) = page { await loadApplications(from: shown, to: shown) }
+            return nil
+        } catch APIError.badStatus(let code, _) where code == 409 {
+            return "A status with that name already exists."
+        } catch APIError.badStatus(let code, _) where code == 400 {
+            return "Enter a name of up to 50 characters."
+        } catch {
+            return message(for: error)
+        }
+    }
+
+    /// Moves one status to a new place and saves the whole order.
+    func moveStatus(from: Int, to: Int) async {
+        guard from != to, statuses.indices.contains(from), statuses.indices.contains(to) else { return }
+        let before = statuses
+        statuses.insert(statuses.remove(at: from), at: to)
+        do {
+            try await api.reorderStatuses(ids: statuses.map(\.id))
+        } catch {
+            statuses = before
+            report(error)
+        }
+    }
+
+    func deleteStatus(_ status: Status) async {
+        do {
+            try await api.deleteStatus(id: status.id)
+            statuses.removeAll { $0.id == status.id }
+        } catch APIError.badStatus(let code, _) where code == 409 {
+            errorMessage = "\"\(status.name)\" cannot be removed: applications still use it, or it is your only status. Move them to another status first."
         } catch {
             report(error)
         }

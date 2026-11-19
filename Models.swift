@@ -16,6 +16,7 @@ struct ApplicationEntry: Codable, Identifiable, Hashable {
     let employmentType: String?
     let setup: String
     let remarks: String?
+    let description: String?
     let link: String
     let appliedDate: String
     var status: Status
@@ -61,6 +62,7 @@ struct NewApplication: Encodable {
     let employmentType: String?
     let setup: String
     let remarks: String?
+    let description: String?
     let link: String
     let appliedDate: String
 }
