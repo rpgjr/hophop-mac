@@ -1,0 +1,35 @@
+name: Mac CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mac-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: xcode-27
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: SwiftLint
+        run: |
+          brew install swiftlint
+          swiftlint lint
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project HopHop.xcodeproj \
+            -scheme HopHop \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO
