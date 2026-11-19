@@ -113,7 +113,7 @@ struct GeneralSettingsView: View {
                 }
             }
         }
-        .frame(maxWidth: 900, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Layout
