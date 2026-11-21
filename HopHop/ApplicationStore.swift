@@ -103,6 +103,10 @@ final class ApplicationStore {
         }
     }
 
+    func statusHistory(for entry: ApplicationEntry) async throws -> [StatusHistoryEntry] {
+        try await guarded { try await api.statusHistory(id: entry.id) }
+    }
+
     func setStatus(_ entry: ApplicationEntry, to status: Status) async {
         do {
             let updated = try await api.updateStatus(id: entry.id, statusId: status.id)

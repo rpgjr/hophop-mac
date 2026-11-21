@@ -22,6 +22,16 @@ struct ApplicationEntry: Codable, Identifiable, Hashable {
     var status: Status
 }
 
+/// One status change of an application. fromStatus is nil for the first entry.
+struct StatusHistoryEntry: Codable, Identifiable, Hashable {
+    let id: Int
+    let fromStatus: String?
+    let fromColor: String?
+    let toStatus: String
+    let toColor: String
+    let changedAt: String
+}
+
 extension ApplicationEntry {
     var salaryText: String {
         guard let low = salaryMin else { return "Not listed" }

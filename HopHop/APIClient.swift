@@ -150,6 +150,11 @@ struct APIClient {
         return try JSONDecoder().decode(ApplicationEntry.self, from: data)
     }
 
+    func statusHistory(id: Int) async throws -> [StatusHistoryEntry] {
+        let data = try await request("GET", "api/applications/\(id)/history")
+        return try JSONDecoder().decode([StatusHistoryEntry].self, from: data)
+    }
+
     func deleteApplication(id: Int) async throws {
         _ = try await request("DELETE", "api/applications/\(id)")
     }
