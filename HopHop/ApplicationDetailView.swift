@@ -7,6 +7,12 @@ struct ApplicationDetailView: View {
 
     let entry: ApplicationEntry
 
+    private enum Tab: CaseIterable {
+        case details, history
+        var title: String { self == .details ? "Details" : "Status history" }
+    }
+
+    @State private var tab = Tab.details
     @State private var editing = false
     @State private var isSaving = false
     @State private var serverError: String?
@@ -77,99 +83,11 @@ struct ApplicationDetailView: View {
     private var details: some View {
         HHModal(title: entry.title, subtitle: entry.company, width: 580, scrolls: false) {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 10) {
-                    HStack(spacing: 7) {
-                        Circle().fill(Color(hex: entry.status.color)).frame(width: 9, height: 9)
-                        Text(entry.status.name).font(HH.font(13, .semibold))
-                    }
-                    .foregroundStyle(HH.ink)
-                    .padding(.horizontal, 12)
-                    .frame(height: 28)
-                    .background(Capsule().fill(HH.sunken))
-                    .overlay(Capsule().stroke(HH.border, lineWidth: 1))
-
-                    Label(
-                        "Applied \(Self.date(from: entry.appliedDate).formatted(date: .long, time: .omitted))",
-                        systemImage: "calendar"
-                    )
-                    .font(HH.font(13))
-                    .foregroundStyle(HH.muted)
-                }
-
-                HStack(spacing: 10) {
-                    fact("Salary per month", entry.salaryMin == nil ? "Not listed" : entry.salaryText)
-                    fact("Setup", entry.setup)
-                    fact("Employment", entry.employmentType ?? "Not specified")
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    HHLabel(text: "Job link")
-                    HStack(spacing: 8) {
-                        Text(entry.link)
-                            .font(HH.font(13))
-                            .foregroundStyle(HH.primary)
-                            .underline()
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .onTapGesture { open(entry.link) }
-                        Button {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(entry.link, forType: .string)
-                        } label: {
-                            Image(systemName: "doc.on.doc").font(.system(size: 12, weight: .medium))
-                        }
-                        .buttonStyle(.hh(.plain, small: true, square: true))
-                        .help("Copy link")
-                        .accessibilityLabel("Copy job link")
-                        Button { open(entry.link) } label: {
-                            Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .semibold))
-                        }
-                        .buttonStyle(.hh(.plain, small: true, square: true))
-                        .help("Open posting")
-                        .accessibilityLabel("Open job posting")
-                    }
-                    .padding(.leading, 12)
-                    .padding(.trailing, 6)
-                    .frame(height: 38)
-                    .hhSunken(radius: 8)
-                }
-
-                if let richDescription {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HHLabel(text: "Description")
-                        ScrollView {
-                            Text(richDescription)
-                                .font(HH.font(14))
-                                .foregroundStyle(HH.ink)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(12)
-                        }
-                        .frame(maxHeight: 200)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .hhSunken(radius: 8)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    HHLabel(text: "Remarks")
-                    ScrollView {
-                        Group {
-                            if let remarks = entry.remarks, !remarks.isEmpty {
-                                Text(hhLinkified(remarks)).foregroundStyle(HH.ink)
-                            } else {
-                                Text("No remarks yet. Press Edit to add some.").foregroundStyle(HH.muted)
-                            }
-                        }
-                        .font(HH.font(14))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                    }
-                    .frame(maxHeight: 190)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .hhSunken(radius: 8)
+                tabBar
+                if tab == .history {
+                    StatusHistoryView(entry: entry)
+                } else {
+                    summary
                 }
             }
         } footer: {
@@ -196,6 +114,128 @@ struct ApplicationDetailView: View {
             }
             .buttonStyle(.hh(.primary))
         }
+    }
+
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 10) {
+                HStack(spacing: 7) {
+                    Circle().fill(Color(hex: entry.status.color)).frame(width: 9, height: 9)
+                    Text(entry.status.name).font(HH.font(13, .semibold))
+                }
+                .foregroundStyle(HH.ink)
+                .padding(.horizontal, 12)
+                .frame(height: 28)
+                .background(Capsule().fill(HH.sunken))
+                .overlay(Capsule().stroke(HH.border, lineWidth: 1))
+
+                Label(
+                    "Applied \(Self.date(from: entry.appliedDate).formatted(date: .long, time: .omitted))",
+                    systemImage: "calendar"
+                )
+                .font(HH.font(13))
+                .foregroundStyle(HH.muted)
+            }
+
+            HStack(spacing: 10) {
+                fact("Salary per month", entry.salaryMin == nil ? "Not listed" : entry.salaryText)
+                fact("Setup", entry.setup)
+                fact("Employment", entry.employmentType ?? "Not specified")
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HHLabel(text: "Job link")
+                HStack(spacing: 8) {
+                    Text(entry.link)
+                        .font(HH.font(13))
+                        .foregroundStyle(HH.primary)
+                        .underline()
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .onTapGesture { open(entry.link) }
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(entry.link, forType: .string)
+                    } label: {
+                        Image(systemName: "doc.on.doc").font(.system(size: 12, weight: .medium))
+                    }
+                    .buttonStyle(.hh(.plain, small: true, square: true))
+                    .help("Copy link")
+                    .accessibilityLabel("Copy job link")
+                    Button { open(entry.link) } label: {
+                        Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .semibold))
+                    }
+                    .buttonStyle(.hh(.plain, small: true, square: true))
+                    .help("Open posting")
+                    .accessibilityLabel("Open job posting")
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, 6)
+                .frame(height: 38)
+                .hhSunken(radius: 8)
+            }
+
+            if let richDescription {
+                VStack(alignment: .leading, spacing: 6) {
+                    HHLabel(text: "Description")
+                    ScrollView {
+                        Text(richDescription)
+                            .font(HH.font(14))
+                            .foregroundStyle(HH.ink)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                    }
+                    .frame(maxHeight: 200)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .hhSunken(radius: 8)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HHLabel(text: "Remarks")
+                ScrollView {
+                    Group {
+                        if let remarks = entry.remarks, !remarks.isEmpty {
+                            Text(hhLinkified(remarks)).foregroundStyle(HH.ink)
+                        } else {
+                            Text("No remarks yet. Press Edit to add some.").foregroundStyle(HH.muted)
+                        }
+                    }
+                    .font(HH.font(14))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                }
+                .frame(maxHeight: 190)
+                .fixedSize(horizontal: false, vertical: true)
+                .hhSunken(radius: 8)
+            }
+        }
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 4) {
+            ForEach(Tab.allCases, id: \.self) { item in
+                Button { tab = item } label: {
+                    Text(item.title)
+                        .font(HH.font(13, .semibold))
+                        .foregroundStyle(tab == item ? HH.primaryInk : HH.muted)
+                        .padding(.horizontal, 12)
+                        .frame(height: 32)
+                        .overlay(alignment: .bottom) {
+                            Rectangle()
+                                .fill(tab == item ? HH.primary : .clear)
+                                .frame(height: 2)
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(tab == item ? .isSelected : [])
+            }
+            Spacer()
+        }
+        .overlay(alignment: .bottom) { Rectangle().fill(HH.border).frame(height: 1) }
     }
 
     private func fact(_ label: String, _ value: String) -> some View {
