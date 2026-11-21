@@ -81,7 +81,7 @@ struct ApplicationDetailView: View {
     // MARK: - Read-only view
 
     private var details: some View {
-        HHModal(title: entry.title, subtitle: entry.company, width: 580, scrolls: false) {
+        HHModal(title: entry.title, subtitle: entry.company, width: 620, scrolls: false) {
             VStack(alignment: .leading, spacing: 18) {
                 tabBar
                 if tab == .history {
@@ -246,6 +246,7 @@ struct ApplicationDetailView: View {
                 .monospacedDigit()
                 .foregroundStyle(HH.ink)
                 .lineLimit(2)
+                .minimumScaleFactor(0.8)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
