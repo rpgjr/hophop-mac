@@ -28,6 +28,7 @@ struct ApplicationDetailView: View {
     @State private var statusID: Int
     @State private var appliedDate: Date
     @State private var location: String
+    @State private var website: String
     @State private var remarks: String
     @State private var jobDescription: String
     private let richDescription: AttributedString?
@@ -45,6 +46,7 @@ struct ApplicationDetailView: View {
         _statusID = State(initialValue: entry.status.id)
         _appliedDate = State(initialValue: Self.date(from: entry.appliedDate))
         _location = State(initialValue: entry.location ?? "")
+        _website = State(initialValue: entry.website ?? "")
         _remarks = State(initialValue: entry.remarks ?? "")
         _jobDescription = State(initialValue: HTMLText.plain(entry.description ?? ""))
         richDescription = entry.description.flatMap { $0.isEmpty ? nil : HTMLText.attributed($0) }
@@ -130,6 +132,18 @@ struct ApplicationDetailView: View {
                 .frame(height: 28)
                 .background(Capsule().fill(HH.sunken))
                 .overlay(Capsule().stroke(HH.border, lineWidth: 1))
+
+                if let website = entry.website, !website.isEmpty {
+                    Label(website, systemImage: "globe")
+                        .font(HH.font(13, .semibold))
+                        .foregroundStyle(HH.ink)
+                        .lineLimit(1)
+                        .padding(.horizontal, 12)
+                        .frame(height: 28)
+                        .background(Capsule().fill(HH.sunken))
+                        .overlay(Capsule().stroke(HH.border, lineWidth: 1))
+                        .accessibilityLabel("Applied on \(website)")
+                }
 
                 Label(
                     "Applied \(Self.date(from: entry.appliedDate).formatted(date: .long, time: .omitted))",
@@ -271,6 +285,7 @@ struct ApplicationDetailView: View {
                 HHTextField(label: "Title", text: $title)
                 HHTextField(label: "Company", text: $company)
                 HHTextField(label: "Location", text: $location, prompt: "Makati City, Philippines")
+                HHTextField(label: "Website", text: $website, prompt: "Jobstreet PH")
                 HHTextField(
                     label: "Job link",
                     text: $link,
@@ -344,6 +359,7 @@ struct ApplicationDetailView: View {
 
         let note = remarks.trimmingCharacters(in: .whitespacesAndNewlines)
         let place = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        let site = website.trimmingCharacters(in: .whitespacesAndNewlines)
         let new = NewApplication(
             statusId: statusID,
             title: title.trimmingCharacters(in: .whitespaces),
@@ -355,6 +371,7 @@ struct ApplicationDetailView: View {
             setup: setup,
             remarks: note.isEmpty ? nil : note,
             location: place.isEmpty ? nil : place,
+            website: site.isEmpty ? nil : site,
             description: HTMLText.keep(shown: jobDescription, original: entry.description),
             link: trimmedLink,
             appliedDate: APIClient.day(appliedDate)

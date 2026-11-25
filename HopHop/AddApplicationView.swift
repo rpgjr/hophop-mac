@@ -43,6 +43,12 @@ struct AddApplicationView: View {
     @State private var employmentType = AppSettings.employment
     @State private var statusID: Int?
     @State private var location = ""
+    @State private var website = ""
+    // what the last page read gave, kept so another mapping of the same website can fill the form again
+    @State private var pageHost = ""
+    @State private var pageCandidates: [Candidate] = []
+    @State private var pageGroups: [SiteMappingGroup] = []
+    @State private var groupID: Int?
     @State private var remarks = ""
     @State private var jobDescription = ""
     @State private var importedDescription: String? // the page's own HTML, kept while the text is untouched
@@ -163,9 +169,18 @@ struct AddApplicationView: View {
 
                 noteView
 
+                if pageGroups.count > 1 {
+                    HHChoice(
+                        label: "Mapping",
+                        selection: Binding(get: { groupID }, set: { chooseGroup($0) }),
+                        options: pageGroups.map { .init(value: Optional($0.id), title: $0.title) }
+                    )
+                }
+
                 HHTextField(label: "Title", text: $title, prompt: "Senior iOS Engineer")
                 HHTextField(label: "Company", text: $company, prompt: "Acme Inc.")
                 HHTextField(label: "Location", text: $location, prompt: "Makati City, Philippines")
+                HHTextField(label: "Website", text: $website, prompt: "Jobstreet PH")
 
                 HStack(alignment: .top, spacing: 16) {
                     HHChoice(
@@ -278,7 +293,7 @@ struct AddApplicationView: View {
 
         do {
             let result = try await store.inspect(url: trimmedLink)
-            show(host: result.host, candidates: result.candidates, rules: result.mappings)
+            show(host: result.host, candidates: result.candidates, groups: result.groups)
         } catch {
             openBrowser(thenSuggest: false)
         }
@@ -297,25 +312,41 @@ struct AddApplicationView: View {
             return
         }
         browserPage = page
-        let rules = store.siteMappings.first { $0.host == page.host }?.mappings ?? []
-        show(host: page.host, candidates: page.candidates, rules: rules)
+        let groups = store.siteMappings.filter { $0.host == page.host }
+        show(host: page.host, candidates: page.candidates, groups: groups)
         if suggestAfterBrowser {
             suggestAfterBrowser = false
             await suggestWithAI()
         }
     }
 
-    private func show(host: String, candidates: [Candidate], rules: [MappingEntry]) {
-        let job = JobImporter.read(InspectResult(host: host, candidates: candidates, mappings: rules))
-        apply(job)
+    private func show(host: String, candidates: [Candidate], groups: [SiteMappingGroup]) {
+        pageHost = host
+        pageCandidates = candidates
+        pageGroups = groups
+        groupID = groups.first?.id
         step = .review
 
-        if rules.isEmpty {
+        guard let group = groups.first else {
+            website = host
             missingHost = host
             note = .success("No details filled yet.")
-        } else {
-            note = .success("Filled \(job.filled) field\(job.filled == 1 ? "" : "s") from \(host). Check them before saving.")
+            return
         }
+        fill(from: group)
+    }
+
+    /// Fills the form with one saved mapping of the website, and names the website after it.
+    private func fill(from group: SiteMappingGroup) {
+        let job = JobImporter.read(candidates: pageCandidates, rules: group.mappings)
+        apply(job)
+        website = group.name
+        note = .success("Filled \(job.filled) field\(job.filled == 1 ? "" : "s") with \(group.name). Check them before saving.")
+    }
+
+    private func chooseGroup(_ id: Int?) {
+        groupID = id
+        if let group = pageGroups.first(where: { $0.id == id }) { fill(from: group) }
     }
 
     /// AI picks the tag for each field on this site. The form fills from that pick, and the user can save it.
@@ -343,8 +374,9 @@ struct AddApplicationView: View {
 
         do {
             let entries = try await store.suggest(candidates: candidates).filter { $0.field != .remarks }
-            let job = JobImporter.read(InspectResult(host: host, candidates: candidates, mappings: entries))
+            let job = JobImporter.read(candidates: candidates, rules: entries)
             apply(job)
+            if website.isEmpty { website = host }
             pendingMapping = PendingMapping(host: host, entries: entries)
             note = .success("AI filled \(job.filled) field\(job.filled == 1 ? "" : "s") from \(host). Check them before saving.")
         } catch {
@@ -355,12 +387,19 @@ struct AddApplicationView: View {
     private func saveSuggestedMapping(_ pending: PendingMapping) async {
         isSavingMapping = true
         defer { isSavingMapping = false }
-        let exists = store.siteMappings.contains { $0.host == pending.host }
-        if let message = await store.saveMapping(host: pending.host, entries: pending.entries, exists: exists) {
+        // named after the host until renamed in Settings, and kept unique so the save is not refused
+        var name = pending.host
+        var count = 2
+        while store.siteMappings.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            name = "\(pending.host) (\(count))"
+            count += 1
+        }
+        if let message = await store.saveMapping(id: nil, name: name, host: pending.host, country: nil, entries: pending.entries) {
             note = .warning(message)
         } else {
             self.pendingMapping = nil
-            note = .success("Mapping saved for \(pending.host).")
+            website = name
+            note = .success("Mapping saved as \(name). Rename it or set its country in Settings.")
         }
     }
 
@@ -387,6 +426,7 @@ struct AddApplicationView: View {
 
         let note = remarks.trimmingCharacters(in: .whitespacesAndNewlines)
         let place = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        let site = website.trimmingCharacters(in: .whitespacesAndNewlines)
         let new = NewApplication(
             statusId: statusID,
             title: title.trimmingCharacters(in: .whitespaces),
@@ -398,6 +438,7 @@ struct AddApplicationView: View {
             setup: setup,
             remarks: note.isEmpty ? nil : note,
             location: place.isEmpty ? nil : place,
+            website: site.isEmpty ? nil : site,
             description: HTMLText.keep(shown: jobDescription, original: importedDescription),
             link: trimmedLink,
             appliedDate: APIClient.day(appliedDate)

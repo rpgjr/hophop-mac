@@ -142,9 +142,9 @@ final class ApplicationStore {
     }
 
     /// Returns an error message to show in the editor, or nil when saved.
-    func saveMapping(host: String, entries: [MappingEntry], exists: Bool) async -> String? {
+    func saveMapping(id: Int?, name: String, host: String, country: String?, entries: [MappingEntry]) async -> String? {
         do {
-            try await api.saveMapping(host: host, entries: entries, exists: exists)
+            try await api.saveMapping(id: id, name: name, host: host, country: country, entries: entries)
             siteMappings = try await api.mappings()
             return nil
         } catch {
@@ -154,8 +154,8 @@ final class ApplicationStore {
 
     func deleteMapping(_ group: SiteMappingGroup) async {
         do {
-            try await api.deleteMapping(host: group.host)
-            siteMappings.removeAll { $0.host == group.host }
+            try await api.deleteMapping(id: group.id)
+            siteMappings.removeAll { $0.id == group.id }
         } catch {
             report(error)
         }

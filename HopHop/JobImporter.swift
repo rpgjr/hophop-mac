@@ -16,14 +16,14 @@ struct ImportedJob {
 }
 
 enum JobImporter {
-    static func read(_ result: InspectResult) -> ImportedJob {
+    static func read(candidates: [Candidate], rules: [MappingEntry]) -> ImportedJob {
         let values = Dictionary(
-            result.candidates.map { ($0.id, $0.value) },
+            candidates.map { ($0.id, $0.value) },
             uniquingKeysWith: { first, _ in first }
         )
         var job = ImportedJob()
 
-        for rule in result.mappings {
+        for rule in rules {
             guard let raw = values["\(rule.sourceType)|\(rule.sourceKey)"] else { continue }
             let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -44,7 +44,7 @@ enum JobImporter {
 
         // lines recognised by their look fill whatever the saved mapping left empty
         let lines = Dictionary(
-            result.candidates.filter { $0.type == "PATTERN" }.map { ($0.key, $0.value) },
+            candidates.filter { $0.type == "PATTERN" }.map { ($0.key, $0.value) },
             uniquingKeysWith: { first, _ in first }
         )
         if job.salaryMin == nil, let line = lines["salary"], let low = numbers(in: line).first {

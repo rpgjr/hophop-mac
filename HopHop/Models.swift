@@ -17,6 +17,7 @@ struct ApplicationEntry: Codable, Identifiable, Hashable {
     let setup: String
     let remarks: String?
     let location: String?
+    let website: String?
     let description: String?
     let link: String
     let appliedDate: String
@@ -79,6 +80,7 @@ struct NewApplication: Encodable {
     let setup: String
     let remarks: String?
     let location: String?
+    let website: String?
     let description: String?
     let link: String
     let appliedDate: String
@@ -146,10 +148,16 @@ struct MappingEntry: Codable, Hashable {
     var sourceKey: String
 }
 
+/// One named mapping of a website, for one country. A website can have several.
 struct SiteMappingGroup: Codable, Identifiable, Hashable {
+    let id: Int
+    var name: String
     let host: String
+    var country: String?
     var mappings: [MappingEntry]
-    var id: String { host }
+
+    /// "Jobstreet PH" or, with a country, "Jobstreet PH · Philippines"
+    var title: String { country.map { "\(name) · \($0)" } ?? name }
 }
 
 struct Candidate: Codable, Identifiable, Hashable {
@@ -162,5 +170,5 @@ struct Candidate: Codable, Identifiable, Hashable {
 struct InspectResult: Codable {
     let host: String
     let candidates: [Candidate]
-    let mappings: [MappingEntry]
+    let groups: [SiteMappingGroup]
 }

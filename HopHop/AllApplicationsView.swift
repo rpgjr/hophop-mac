@@ -5,7 +5,7 @@ struct AllApplicationsView: View {
     @Environment(ApplicationStore.self) private var store
 
     private enum SortKey: String {
-        case title = "Job", status = "Status", applied = "Applied", setup = "Setup", salary = "Salary"
+        case title = "Job", status = "Status", applied = "Applied", website = "Website", setup = "Setup", salary = "Salary"
     }
 
     @State private var entries: [ApplicationEntry] = []
@@ -13,6 +13,7 @@ struct AllApplicationsView: View {
 
     @State private var query = ""
     @State private var statusIds: Set<Int> = []
+    @State private var websites: Set<String> = []
     @State private var setups: Set<String> = []
     @State private var employment: Set<String> = []
     @State private var showFilters = false
@@ -22,7 +23,7 @@ struct AllApplicationsView: View {
     @State private var ascending = false
 
     private var filtering: Bool {
-        !query.isEmpty || !statusIds.isEmpty || !setups.isEmpty || !employment.isEmpty || from != nil || to != nil
+        !query.isEmpty || !statusIds.isEmpty || !websites.isEmpty || !setups.isEmpty || !employment.isEmpty || from != nil || to != nil
     }
 
     private var shown: [ApplicationEntry] {
@@ -33,8 +34,9 @@ struct AllApplicationsView: View {
         let direction = ascending ? 1.0 : -1.0
 
         let matching = entries.filter { e in
-            if !needle.isEmpty, !"\(e.title) \(e.company) \(e.remarks ?? "")".lowercased().contains(needle) { return false }
+            if !needle.isEmpty, !"\(e.title) \(e.company) \(e.website ?? "") \(e.remarks ?? "")".lowercased().contains(needle) { return false }
             if !statusIds.isEmpty, !statusIds.contains(e.status.id) { return false }
+            if !websites.isEmpty, !websites.contains(e.website ?? "") { return false }
             if !setups.isEmpty, !setups.contains(e.setup) { return false }
             if !employment.isEmpty, !employment.contains(e.employmentType ?? "") { return false }
             if let fromKey, e.appliedDate < fromKey { return false }
@@ -53,6 +55,7 @@ struct AllApplicationsView: View {
             switch sortKey {
             case .title: result = Double(a.title.localizedCompare(b.title).rawValue)
             case .status: result = Double((order[a.status.id] ?? 0) - (order[b.status.id] ?? 0))
+            case .website: result = Double((a.website ?? "").localizedCompare(b.website ?? "").rawValue)
             case .setup: result = Double(a.setup.localizedCompare(b.setup).rawValue)
             default: result = Double(a.appliedDate.compare(b.appliedDate).rawValue)
             }
@@ -108,7 +111,7 @@ struct AllApplicationsView: View {
                     list
                 }
             }
-            .frame(maxWidth: 1000)
+            .frame(maxWidth: 1100)
             .padding(.horizontal, 30)
             .padding(.vertical, 28)
             .frame(maxWidth: .infinity)
@@ -122,8 +125,13 @@ struct AllApplicationsView: View {
 
     // MARK: - Filters
 
+    /// Every website name used by an application, for the filter.
+    private var websiteNames: [String] {
+        Array(Set(entries.compactMap { $0.website }.filter { !$0.isEmpty })).sorted { $0.localizedCompare($1) == .orderedAscending }
+    }
+
     private var filterCount: Int {
-        statusIds.count + setups.count + employment.count + (from == nil ? 0 : 1) + (to == nil ? 0 : 1)
+        statusIds.count + websites.count + setups.count + employment.count + (from == nil ? 0 : 1) + (to == nil ? 0 : 1)
     }
 
     private var filters: some View {
@@ -155,6 +163,9 @@ struct AllApplicationsView: View {
                 FlowLayout(spacing: 8) {
                     ForEach(store.statuses.filter { statusIds.contains($0.id) }) { status in
                         removable(status.name, color: Color(hex: status.color)) { statusIds.remove(status.id) }
+                    }
+                    ForEach(websiteNames.filter { websites.contains($0) }, id: \.self) { value in
+                        removable(value) { websites.remove(value) }
                     }
                     ForEach(JobOptions.setups.filter { setups.contains($0) }, id: \.self) { value in
                         removable(value) { setups.remove(value) }
@@ -197,6 +208,16 @@ struct AllApplicationsView: View {
                     }
                 }
             }
+            if !websiteNames.isEmpty {
+                group("Website") {
+                    ForEach(websiteNames, id: \.self) { value in
+                        chip(value, on: websites.contains(value),
+                             suffix: "\(entries.filter { $0.website == value }.count)") {
+                            flip(&websites, value)
+                        }
+                    }
+                }
+            }
             group("Setup") {
                 ForEach(JobOptions.setups, id: \.self) { value in
                     chip(value, on: setups.contains(value)) { flip(&setups, value) }
@@ -226,7 +247,7 @@ struct AllApplicationsView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(HH.muted)
-            TextField("", text: $query, prompt: Text("Search title, company or remarks").foregroundStyle(HH.muted.opacity(0.65)))
+            TextField("", text: $query, prompt: Text("Search title, company, website or remarks").foregroundStyle(HH.muted.opacity(0.65)))
                 .textFieldStyle(.plain)
                 .font(HH.font(14))
                 .foregroundStyle(HH.ink)
@@ -310,6 +331,7 @@ struct AllApplicationsView: View {
     private func clear() {
         query = ""
         statusIds = []
+        websites = []
         setups = []
         employment = []
         from = nil
@@ -318,7 +340,7 @@ struct AllApplicationsView: View {
 
     // MARK: - List
 
-    private static let widths: [SortKey: CGFloat] = [.status: 130, .applied: 110, .setup: 110, .salary: 150]
+    private static let widths: [SortKey: CGFloat] = [.status: 120, .applied: 105, .website: 130, .setup: 105, .salary: 140]
 
     private var list: some View {
         VStack(spacing: 0) {
@@ -326,6 +348,7 @@ struct AllApplicationsView: View {
                 header(.title)
                 header(.status).frame(width: Self.widths[.status])
                 header(.applied).frame(width: Self.widths[.applied])
+                header(.website).frame(width: Self.widths[.website])
                 header(.setup).frame(width: Self.widths[.setup])
                 header(.salary).frame(width: Self.widths[.salary], alignment: .trailing)
             }
@@ -405,6 +428,12 @@ struct AllApplicationsView: View {
                         .font(HH.font(13))
                         .foregroundStyle(HH.ink)
                         .frame(width: widths[.applied], alignment: .leading)
+
+                    Text(entry.website ?? "")
+                        .font(HH.font(13))
+                        .foregroundStyle(HH.ink)
+                        .lineLimit(1)
+                        .frame(width: widths[.website], alignment: .leading)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(entry.setup).foregroundStyle(HH.ink)
