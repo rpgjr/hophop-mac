@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/rpgjr/hophop-mac/compare/v1.1.0...v1.2.0) (2026-11-25)
+
+
+### Features
+
+* Add multiple mapping for a single website ([#11](https://github.com/rpgjr/hophop-mac/issues/11)) ([18b3cf9](https://github.com/rpgjr/hophop-mac/commit/18b3cf9995da1d9aaae60ff704b0703299a8a223))
+* Add other currencies ([#10](https://github.com/rpgjr/hophop-mac/issues/10)) ([a874605](https://github.com/rpgjr/hophop-mac/commit/a874605e7cac83c7820be5429a811b86a90e308c))
+
+
+### Bug Fixes
+
+* modal details ui fix ([#8](https://github.com/rpgjr/hophop-mac/issues/8)) ([ab4e011](https://github.com/rpgjr/hophop-mac/commit/ab4e011e7ab5cdf252e4bd79d0b85dce43dfd845))
+
 ## [1.1.0](https://github.com/rpgjr/hophop-mac/compare/v1.0.0...v1.1.0) (2026-11-21)
 
 
