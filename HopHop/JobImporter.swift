@@ -9,6 +9,7 @@ struct ImportedJob {
     var currency: String?
     var employmentType: String?
     var setup: String?
+    var location: String?
     var remarks: String?
     var description: String?
     var filled = 0
@@ -21,7 +22,6 @@ enum JobImporter {
             uniquingKeysWith: { first, _ in first }
         )
         var job = ImportedJob()
-        var location: String?
 
         for rule in result.mappings {
             guard let raw = values["\(rule.sourceType)|\(rule.sourceKey)"] else { continue }
@@ -35,9 +35,7 @@ enum JobImporter {
             case .salaryCurrency: job.currency = currency(in: text)
             case .employmentType: job.employmentType = employmentType(in: text)
             case .setup: job.setup = setup(in: text)
-            case .location:
-                location = text
-                continue
+            case .location: job.location = text
             case .description: job.description = text
             case .remarks: continue
             }
@@ -65,7 +63,7 @@ enum JobImporter {
         }
 
         // sites often put the work arrangement inside the location, like "Makati City (Hybrid)"
-        if job.setup == nil, let location, let found = setup(in: location) {
+        if job.setup == nil, let location = job.location, let found = setup(in: location) {
             job.setup = found
             job.filled += 1
         }
@@ -83,6 +81,12 @@ enum JobImporter {
     static func currency(in text: String) -> String? {
         let upper = text.uppercased()
         if upper.contains("PHP") || upper.contains("₱") { return "PHP" }
+        if upper.contains("MYR") || upper.contains(/\bRM\s?\d/) { return "MYR" }
+        if upper.contains("SGD") || upper.contains("S$") { return "SGD" }
+        if upper.contains("AUD") || upper.contains("A$") { return "AUD" }
+        if upper.contains("EUR") || upper.contains("€") { return "EUR" }
+        if upper.contains("GBP") || upper.contains("£") { return "GBP" }
+        if upper.contains("JPY") || upper.contains("¥") { return "JPY" }
         if upper.contains("USD") || upper.contains("$") { return "USD" }
         return nil
     }

@@ -16,6 +16,7 @@ struct ApplicationEntry: Codable, Identifiable, Hashable {
     let employmentType: String?
     let setup: String
     let remarks: String?
+    let location: String?
     let description: String?
     let link: String
     let appliedDate: String
@@ -37,15 +38,20 @@ extension ApplicationEntry {
         guard let low = salaryMin else { return "Not listed" }
 
         let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = salaryCurrency
+        formatter.numberStyle = .decimal
         formatter.locale = Locale(identifier: "en_PH")
         formatter.maximumFractionDigits = 0
 
-        let lowText = formatter.string(from: NSNumber(value: low)) ?? "\(low)"
+        // letters in the symbol, like RM, read better with a space: "RM 7,000"
+        let symbol = JobOptions.symbol(for: salaryCurrency)
+        let prefix = symbol.last?.isLetter == true ? "\(symbol) " : symbol
+        func text(_ value: Double) -> String {
+            prefix + (formatter.string(from: NSNumber(value: value)) ?? "\(value)")
+        }
+
+        let lowText = text(low)
         guard let high = salaryMax, high != low else { return lowText }
-        let highText = formatter.string(from: NSNumber(value: high)) ?? "\(high)"
-        return "\(lowText) – \(highText)"
+        return "\(lowText) – \(text(high))"
     }
 }
 
@@ -72,13 +78,29 @@ struct NewApplication: Encodable {
     let employmentType: String?
     let setup: String
     let remarks: String?
+    let location: String?
     let description: String?
     let link: String
     let appliedDate: String
 }
 
 enum JobOptions {
-    static let currencies = ["PHP", "USD"]
+    static let currencies = ["PHP", "USD", "MYR", "SGD", "EUR", "GBP", "AUD", "JPY"]
+
+    /// What each currency is written with in front of an amount, like "RM 7,000".
+    static func symbol(for code: String) -> String {
+        switch code {
+        case "PHP": "₱"
+        case "USD": "$"
+        case "MYR": "RM"
+        case "SGD": "S$"
+        case "EUR": "€"
+        case "GBP": "£"
+        case "AUD": "A$"
+        case "JPY": "¥"
+        default: code
+        }
+    }
     static let setups = ["Onsite", "Hybrid", "WFH"]
     static let employmentTypes = ["Full-time", "Part-time", "Contractual"]
 }

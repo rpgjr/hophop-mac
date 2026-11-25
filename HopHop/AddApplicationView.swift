@@ -42,6 +42,7 @@ struct AddApplicationView: View {
     @State private var setup = AppSettings.setup
     @State private var employmentType = AppSettings.employment
     @State private var statusID: Int?
+    @State private var location = ""
     @State private var remarks = ""
     @State private var jobDescription = ""
     @State private var importedDescription: String? // the page's own HTML, kept while the text is untouched
@@ -164,6 +165,7 @@ struct AddApplicationView: View {
 
                 HHTextField(label: "Title", text: $title, prompt: "Senior iOS Engineer")
                 HHTextField(label: "Company", text: $company, prompt: "Acme Inc.")
+                HHTextField(label: "Location", text: $location, prompt: "Makati City, Philippines")
 
                 HStack(alignment: .top, spacing: 16) {
                     HHChoice(
@@ -370,6 +372,7 @@ struct AddApplicationView: View {
         if let value = job.currency { currency = value }
         if let value = job.employmentType { employmentType = value }
         if let value = job.setup { setup = value }
+        if let value = job.location { location = value }
         if let value = job.description {
             jobDescription = HTMLText.plain(value)
             importedDescription = value
@@ -383,6 +386,7 @@ struct AddApplicationView: View {
         defer { isSaving = false }
 
         let note = remarks.trimmingCharacters(in: .whitespacesAndNewlines)
+        let place = location.trimmingCharacters(in: .whitespacesAndNewlines)
         let new = NewApplication(
             statusId: statusID,
             title: title.trimmingCharacters(in: .whitespaces),
@@ -393,6 +397,7 @@ struct AddApplicationView: View {
             employmentType: employmentType,
             setup: setup,
             remarks: note.isEmpty ? nil : note,
+            location: place.isEmpty ? nil : place,
             description: HTMLText.keep(shown: jobDescription, original: importedDescription),
             link: trimmedLink,
             appliedDate: APIClient.day(appliedDate)
