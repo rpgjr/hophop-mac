@@ -27,6 +27,7 @@ struct ApplicationDetailView: View {
     @State private var employmentType: String?
     @State private var statusID: Int
     @State private var appliedDate: Date
+    @State private var location: String
     @State private var remarks: String
     @State private var jobDescription: String
     private let richDescription: AttributedString?
@@ -43,6 +44,7 @@ struct ApplicationDetailView: View {
         _employmentType = State(initialValue: entry.employmentType)
         _statusID = State(initialValue: entry.status.id)
         _appliedDate = State(initialValue: Self.date(from: entry.appliedDate))
+        _location = State(initialValue: entry.location ?? "")
         _remarks = State(initialValue: entry.remarks ?? "")
         _jobDescription = State(initialValue: HTMLText.plain(entry.description ?? ""))
         richDescription = entry.description.flatMap { $0.isEmpty ? nil : HTMLText.attributed($0) }
@@ -141,6 +143,10 @@ struct ApplicationDetailView: View {
                 fact("Salary per month", entry.salaryMin == nil ? "Not listed" : entry.salaryText)
                 fact("Setup", entry.setup)
                 fact("Employment", entry.employmentType ?? "Not specified")
+            }
+
+            HStack(spacing: 10) {
+                fact("Location", entry.location ?? "Not specified")
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -264,6 +270,7 @@ struct ApplicationDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HHTextField(label: "Title", text: $title)
                 HHTextField(label: "Company", text: $company)
+                HHTextField(label: "Location", text: $location, prompt: "Makati City, Philippines")
                 HHTextField(
                     label: "Job link",
                     text: $link,
@@ -336,6 +343,7 @@ struct ApplicationDetailView: View {
         defer { isSaving = false }
 
         let note = remarks.trimmingCharacters(in: .whitespacesAndNewlines)
+        let place = location.trimmingCharacters(in: .whitespacesAndNewlines)
         let new = NewApplication(
             statusId: statusID,
             title: title.trimmingCharacters(in: .whitespaces),
@@ -346,6 +354,7 @@ struct ApplicationDetailView: View {
             employmentType: employmentType,
             setup: setup,
             remarks: note.isEmpty ? nil : note,
+            location: place.isEmpty ? nil : place,
             description: HTMLText.keep(shown: jobDescription, original: entry.description),
             link: trimmedLink,
             appliedDate: APIClient.day(appliedDate)

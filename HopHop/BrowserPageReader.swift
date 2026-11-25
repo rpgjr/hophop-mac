@@ -163,7 +163,7 @@ private struct BrowserWebView: NSViewRepresentable {
             } catch (e) {}
           });
           const patterns = {
-            salary: [/(₱|PHP|USD|\\$)\\s?\\d[\\d,]*|\\d[\\d,.]*\\s?k?\\s?(₱|PHP|USD)/i, 120],
+            salary: [/(₱|PHP|USD|MYR|SGD|RM|S\\$|\\$)\\s?\\d[\\d,]*|\\d[\\d,.]*\\s?k?\\s?(₱|PHP|USD|MYR|SGD)/i, 120],
             setup: [/\\b(hybrid|remote|work from home|wfh|on-?site)\\b/i, 120],
             employment_type: [/\\b(full[- ]?time|part[- ]?time|contract(or)?|temporary|freelance|internship)\\b/i, 60]
           };
