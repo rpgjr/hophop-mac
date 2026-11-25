@@ -8,7 +8,7 @@ struct MappingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top) {
-                Text("Tell HopHop which tag on each website holds the job title, company, salary and so on. Saved tags are used when you add a job from that website.")
+                Text("Tell HopHop which tag on a website holds the job title, company, salary and so on. A website can have several mappings, for example one per country. The mapping name is shown as the website on each application.")
                     .font(HH.font(14))
                     .foregroundStyle(HH.muted)
                     .frame(maxWidth: 520, alignment: .leading)
@@ -16,16 +16,16 @@ struct MappingsView: View {
                 Button {
                     store.modal = .mapping(nil)
                 } label: {
-                    Label("Add website", systemImage: "plus.circle")
+                    Label("Add mapping", systemImage: "plus.circle")
                 }
                 .buttonStyle(.hh(.primary))
             }
 
             if store.siteMappings.isEmpty {
                 VStack(spacing: 4) {
-                    Text("No websites saved yet")
+                    Text("No mappings saved yet")
                         .font(HH.font(18, .bold))
-                    Text("Press Add website and paste one job link.")
+                    Text("Press Add mapping and paste one job link.")
                         .font(HH.font(14))
                         .foregroundStyle(HH.muted)
                 }
@@ -46,10 +46,27 @@ struct MappingsView: View {
     private func card(_ group: SiteMappingGroup) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(group.host)
-                    .font(HH.mono(15, .bold))
-                    .foregroundStyle(HH.ink)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(group.name)
+                        .font(HH.font(16, .bold))
+                        .foregroundStyle(HH.ink)
+                        .lineLimit(1)
+                    HStack(spacing: 8) {
+                        Text(group.host)
+                            .font(HH.mono(11))
+                            .foregroundStyle(HH.muted)
+                            .lineLimit(1)
+                        if let country = group.country {
+                            Text(country)
+                                .font(HH.font(11, .bold))
+                                .foregroundStyle(HH.ink)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(HH.surface))
+                                .overlay(Capsule().stroke(HH.border, lineWidth: 1))
+                        }
+                    }
+                }
                 Spacer()
                 Button {
                     store.modal = .mapping(group)
@@ -57,12 +74,12 @@ struct MappingsView: View {
                     Image(systemName: "pencil").font(.system(size: 12, weight: .bold))
                 }
                 .buttonStyle(.hh(.plain, square: true))
-                .accessibilityLabel("Edit \(group.host)")
+                .accessibilityLabel("Edit \(group.name)")
 
                 Button {
                     store.modal = .confirm(Confirmation(
-                        title: "Remove all saved tags?",
-                        message: "\(group.host) will no longer fill the form from its links.",
+                        title: "Remove this mapping?",
+                        message: "\(group.name) will no longer fill the form from its links. Applications keep their website name.",
                         confirmLabel: "Remove"
                     ) {
                         Task { await store.deleteMapping(group) }
@@ -71,7 +88,7 @@ struct MappingsView: View {
                     Image(systemName: "trash").font(.system(size: 12, weight: .bold))
                 }
                 .buttonStyle(.hh(.danger, square: true))
-                .accessibilityLabel("Remove \(group.host)")
+                .accessibilityLabel("Remove \(group.name)")
             }
 
             VStack(alignment: .leading, spacing: 7) {

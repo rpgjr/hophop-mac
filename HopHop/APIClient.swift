@@ -120,22 +120,24 @@ struct APIClient {
         return try JSONDecoder().decode([MappingEntry].self, from: data)
     }
 
-    /// POST adds a website that has no rules yet, PUT replaces the rules of one that does.
-    func saveMapping(host: String, entries: [MappingEntry], exists: Bool) async throws {
+    /// POST adds a mapping (id is nil), PUT replaces the name, country and rules of an existing one.
+    func saveMapping(id: Int?, name: String, host: String, country: String?, entries: [MappingEntry]) async throws {
         struct Payload: Encodable {
+            let name: String
             let host: String?
+            let country: String?
             let mappings: [MappingEntry]
         }
-        let body = try JSONEncoder().encode(Payload(host: exists ? nil : host, mappings: entries))
-        if exists {
-            _ = try await request("PUT", "api/site-mappings/\(host)", body: body)
+        let body = try JSONEncoder().encode(Payload(name: name, host: id == nil ? host : nil, country: country, mappings: entries))
+        if let id {
+            _ = try await request("PUT", "api/site-mappings/\(id)", body: body)
         } else {
             _ = try await request("POST", "api/site-mappings", body: body)
         }
     }
 
-    func deleteMapping(host: String) async throws {
-        _ = try await request("DELETE", "api/site-mappings/\(host)")
+    func deleteMapping(id: Int) async throws {
+        _ = try await request("DELETE", "api/site-mappings/\(id)")
     }
 
     func updateApplication(id: Int, _ new: NewApplication) async throws -> ApplicationEntry {

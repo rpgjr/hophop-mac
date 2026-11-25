@@ -11,7 +11,8 @@ struct MappingEditorView: View {
     let group: SiteMappingGroup?
 
     @State private var host: String
-    @State private var exists: Bool
+    @State private var name: String
+    @State private var country: String
     @State private var sampleLink = ""
     @State private var candidates: [Candidate] = []
     @State private var picks: [MappingField: Pick]
@@ -28,7 +29,8 @@ struct MappingEditorView: View {
     init(group: SiteMappingGroup?) {
         self.group = group
         _host = State(initialValue: group?.host ?? "")
-        _exists = State(initialValue: group != nil)
+        _name = State(initialValue: group?.name ?? "")
+        _country = State(initialValue: group?.country ?? "")
         _picks = State(initialValue: Dictionary(
             uniqueKeysWithValues: (group?.mappings ?? []).filter { $0.field != .remarks }.map {
                 ($0.field, Pick(type: $0.sourceType, key: $0.sourceKey))
@@ -44,11 +46,16 @@ struct MappingEditorView: View {
 
     var body: some View {
         HHModal(
-            title: group == nil ? "Add website" : "Edit \(group!.host)",
-            subtitle: "Paste any one job link from the website. HopHop lists its tags and you pick which tag fills each field. Use Suggest with AI to pick for you.",
+            title: group == nil ? "Add mapping" : "Edit \(group!.name)",
+            subtitle: "Name the mapping and set its country. Paste any one job link from the website. HopHop lists its tags and you pick which tag fills each field. Use Suggest with AI to pick for you.",
             width: 680
         ) {
             VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 16) {
+                    HHTextField(label: "Name", text: $name, prompt: "Jobstreet PH")
+                    HHTextField(label: "Country", text: $country, prompt: "Philippines")
+                }
+
                 HStack(alignment: .bottom, spacing: 10) {
                     HHTextField(
                         label: "Sample job link",
@@ -118,7 +125,7 @@ struct MappingEditorView: View {
                 if busy == .saving { HHSpinner() } else { Text("Save mapping") }
             }
             .buttonStyle(.hh(.primary))
-            .disabled(host.isEmpty || picks.isEmpty || busy != nil)
+            .disabled(host.isEmpty || name.trimmingCharacters(in: .whitespaces).isEmpty || picks.isEmpty || busy != nil)
         }
         .sheet(isPresented: $showBrowser) {
             if let url = URL(string: sampleLink.trimmingCharacters(in: .whitespaces)) {
@@ -279,7 +286,7 @@ struct MappingEditorView: View {
         defer { busy = nil }
         do {
             let result = try await store.inspect(url: sampleLink.trimmingCharacters(in: .whitespaces))
-            load(host: result.host, candidates: result.candidates, saved: result.mappings)
+            load(host: result.host, candidates: result.candidates)
             return true
         } catch {
             suggestAfterBrowser = thenSuggest
@@ -293,23 +300,18 @@ struct MappingEditorView: View {
             errorText = "Could not read that page. Check the link."
             return
         }
-        let saved = store.siteMappings.first { $0.host == page.host }?.mappings ?? []
-        load(host: page.host, candidates: page.candidates, saved: saved)
+        load(host: page.host, candidates: page.candidates)
         if suggestAfterBrowser {
             suggestAfterBrowser = false
             await suggest()
         }
     }
 
-    private func load(host: String, candidates: [Candidate], saved: [MappingEntry]) {
-        self.host = host
-        exists = exists || !saved.isEmpty || store.siteMappings.contains { $0.host == host }
+    private func load(host: String, candidates: [Candidate]) {
+        // an edited mapping stays on the website it was made for
+        if group == nil { self.host = host }
+        if name.trimmingCharacters(in: .whitespaces).isEmpty { name = host }
         self.candidates = candidates
-        if picks.isEmpty {
-            for entry in saved {
-                picks[entry.field] = Pick(type: entry.sourceType, key: entry.sourceKey)
-            }
-        }
     }
 
     private func suggest() async {
@@ -346,7 +348,14 @@ struct MappingEditorView: View {
         let entries = MappingField.mappable.compactMap { field in
             picks[field].map { MappingEntry(field: field, sourceType: $0.type, sourceKey: $0.key) }
         }
-        if let message = await store.saveMapping(host: host, entries: entries, exists: exists) {
+        let place = country.trimmingCharacters(in: .whitespaces)
+        if let message = await store.saveMapping(
+            id: group?.id,
+            name: name.trimmingCharacters(in: .whitespaces),
+            host: host,
+            country: place.isEmpty ? nil : place,
+            entries: entries
+        ) {
             errorText = message
         } else {
             store.modal = nil
