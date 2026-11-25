@@ -491,10 +491,12 @@ struct HHModal<Content: View, Footer: View>: View {
     let title: String
     var subtitle: String?
     var width: CGFloat = 560
-    /// False sizes the dialog to its content instead of scrolling it.
+    /// False sizes the dialog to its content, and scrolls only when the content is taller than the window.
     var scrolls = true
     @ViewBuilder let content: Content
     @ViewBuilder let footer: Footer
+
+    @State private var contentHeight: CGFloat?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -531,9 +533,13 @@ struct HHModal<Content: View, Footer: View>: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
-                content
-                    .padding(20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                ScrollView {
+                    content
+                        .padding(20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+                }
+                .frame(maxHeight: contentHeight ?? .infinity)
             }
 
             Rectangle().fill(HH.border).frame(height: 1)
@@ -552,7 +558,6 @@ struct HHModal<Content: View, Footer: View>: View {
                 .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
         )
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(HH.border, lineWidth: 1))
-        .fixedSize(horizontal: false, vertical: !scrolls)
         .padding(24)
     }
 }
